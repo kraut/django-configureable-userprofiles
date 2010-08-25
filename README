@@ -1,0 +1,41 @@
+= dajngo-configureable-userprofiles =
+
+( This readme is unfished, finished soon ;) )
+
+Create and customize userprofiles via admin interface.
+
+Note: some parts of the code are inspirated by the django-settings project!
+== Features ==
+
+== Usage ==
+1. Install in python path or in django project
+2. Add it to installed apps:
+
+	INSTALLED_APPS += ('userpofiles',)
+
+3. (Optional) Define some default profiles / fields.
+  In admin interface you have the ability to add/modify fields.
+  So do not worry about, this default vales ;)
+
+	# some default profile fields to add in DB 
+	USER_PROFILE_FIELDS={
+		#name    desplayed_name   description         type  is_required
+		'bday': ('Geburtstag','Wann bist du geboren?', 'date',1),
+		'website_prv': ('Website','Deine private Homepage', 'string',0), 
+		'website': ('Website','Ihre Homepage', 'string',0), 
+		'plz':('Postleitzahl', '','zip',1),
+		'strasse': (u'Straße', u'Straßenname mit Hausnummer', 
+		        'string', 1),
+
+		}
+	# default profiles an theire fields. (you can modify it in admin interface)
+	USER_PROFILES = {
+		'Bewerberprofil' : ('bday','website_prv'),
+		'Firmenprofil' : ('website','plz'),
+		}
+	# group <-> profile mapping
+	DEFAULT_GROUPS = {  # groupname  profilename 
+		    'Firma' : ('Firmenprofil',),
+		    'Bewerber': ('Bewerberprofil',),
+		    }
+
