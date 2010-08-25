@@ -1,21 +1,50 @@
 = dajngo-configureable-userprofiles =
-
-( This readme is unfished, finished soon ;) )
-
 Create and customize userprofiles via admin interface.
 
-Note: some parts of the code are inspirated by the django-settings project!
-== Features ==
+STILL VERY VERY ALPHA!
+So feel free to add issues ;)
 
+project home: https://code.google.com/p/django-configureable-userprofile/
+
+
+Note: some parts of the code are inspirated by the django-settings project!
+
+== Features ==
+ * create userprofiles types(ie: "AuthorProfile", "UserProfile") in admin interface
+ * create custom profile fields in admin interface
+ * add field to userprofile types in admin interface
+ * inline userprofile edit in User admin
+ * includes a user create form which replace username with email address (technically 
+	the usermodel is the same, form only stores email in username field ,too.).
+ * every Group is associated with an userprofile type
+
+=== supported userprofile fields ===
+ * String
+ * Integer
+ * PositiveInteger
+ * Zip (for Germany, if you want it other country you have to change the widget only)
+ * State (for Germany,  -- " -- )
+ * Date
+ * Boolean
+
+==== planned ===
+ * more generic field like: RegexStringField 
 == Usage ==
-1. Install in python path or in django project
+1. Checkout project and store it in python path or in your django project root.
+
 2. Add it to installed apps:
 
 	INSTALLED_APPS += ('userpofiles',)
 
+Now in admin interface should appear a new box called userprofiles
+and you  can add new usprofiles / fields. 
+Go to user admin and choose profile, save it and renter the admin page for this user.
+There should a inline edit of the former created userprofile.
+
+
 3. (Optional) Define some default profiles / fields.
   In admin interface you have the ability to add/modify fields.
-  So do not worry about, this default vales ;)
+  So do not worry about this default values ;)
 
 	# some default profile fields to add in DB 
 	USER_PROFILE_FIELDS={
@@ -38,4 +67,5 @@ Note: some parts of the code are inspirated by the django-settings project!
 		    'Firma' : ('Firmenprofil',),
 		    'Bewerber': ('Bewerberprofil',),
 		    }
+
 
