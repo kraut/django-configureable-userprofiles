@@ -2,13 +2,15 @@
 from django.db.models import signals
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.auth.models import Group
 
 import models
 
 
 
 DEFAULT_FIELDS = getattr(settings, 'USER_PROFILE_FIELDS', {})
-DEFAULT_PROFILES = getattr(settings, 'USER_PROFILES')
+DEFAULT_PROFILES = getattr(settings, 'USER_PROFILES', {})
+DEFAULT_GROUPS = getattr(settings, 'DEFAULT_GROUPS', {})
 
 
 
@@ -43,4 +45,16 @@ def initialize_data(sender, **kwargs):
                     print "Are youe missed to define field: "+str(e)
             p.fields.add(field2add)
         p.save()
+
+    #--- groups
+    for name, group_tuple  in DEFAULT_GROUPS.items():
+        profile_name = group_tuple[0]
+        if not Group.objects.filter(name=name):
+            profile =models.UserProfile.objects.get(identifier=profile_name )
+            #TODO: catch error, non existing Profile
+            group = Group.objects.create(name=name , profile = profile)
+            #group.profile=profileA
+            #group.profile = profile
+            group.save()
+
 signals.post_syncdb.connect(initialize_data, sender=models)
