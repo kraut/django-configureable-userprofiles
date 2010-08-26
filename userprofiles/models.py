@@ -107,7 +107,7 @@ class ProfileFieldManager(models.Manager):
 
     def set_field(self, name, displayed_name, desc, is_required, type_name):
         TypeClass = ContentType.objects.get(
-                app_label='configureable_userprofiles', 
+                app_label='userprofiles', 
                 model=type_name.lower()
                 )#.model_class()
         field = UserProfileField.objects.create(name=name, 

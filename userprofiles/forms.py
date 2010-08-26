@@ -17,10 +17,12 @@ class UserProfileFieldForm(forms.ModelForm):
     def __init__(self, *a, **kw):
         forms.ModelForm.__init__(self, *a, **kw)
         #@TODO: help me to make this more generic, plz ;)
-        self.fields['content_type'].queryset = ContentType.objects.filter(
-            Q(name='string') | Q(name='integer') | Q(name='positive integer') 
-            | Q(name='boolean') |  Q(name='date') | Q(name='zip')
-            |  Q(name='state'))
+        self.fields['content_type'].queryset =ContentType.objects.filter( 
+                        Q(app_label='userprofiles') ).exclude(Q(name='Field') |
+                                Q(name='Value') | Q(name='user profile') | 
+                                Q(name="generic field"))
+
+
 
 
 class ValueAdminForm(forms.ModelForm):
