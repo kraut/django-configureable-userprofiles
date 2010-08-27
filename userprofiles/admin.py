@@ -56,15 +56,22 @@ admin.site.register(UserProfile, UserProfileAdmin)
 admin.site.unregister(User)
 from django.forms.formsets import formset_factory
 
-class UserChangeAdminForm(UserChangeCustForm):
+class GenericUserChangeAdminForm(UserChangeCustForm):
     def __init__(self,*a, **kw):
-        super(UserChangeAdminForm, self).__init__(*a, **kw)
+        try:
+            admin_class = kw['admin_class']
+            del kw['admin_class']
+        except KeyError, e:
+            raise Exception('%s needs admin_class as keyword argument' %
+                    'GenericUserChangeAdminForm')
+
+        super(GenericUserChangeAdminForm, self).__init__(*a, **kw)
 
         #@XXX: i dont know how to make this better, help me ;)
         #       without this admin does not show dynamic fields.
         fset_idx =-1
         idx=None
-        for s in UserCustAdmin.fieldsets:
+        for s in admin_class.fieldsets:
             fset_idx+=1
             if s[0] == 'Profile':
                 idx = fset_idx
@@ -72,12 +79,19 @@ class UserChangeAdminForm(UserChangeCustForm):
         #replace profile section
         if hasattr(self, 'fieldset_el'):
             if idx :#len(admin.UserCustAdmin.fieldsets)> fset_idx>-1:
-                temp = list(UserCustAdmin.fieldsets)
+                temp = list(admin_class.fieldsets)
                 temp[idx] = self.fieldset_el
-                UserCustAdmin.fieldsets = tuple(temp)
+                admin_class.fieldsets = tuple(temp)
             else:
-                UserCustAdmin.fieldsets+=(self.fieldset_el,)
+                admin_class.fieldsets+=(self.fieldset_el,)
 
+
+class UserChangeAdminForm(GenericUserChangeAdminForm):
+    def __init__(self,*a, **kw):
+        kw['admin_class'] = UserCustAdmin
+        super(UserChangeAdminForm, self).__init__(*a, **kw)
+
+        
 class UserCustAdmin(UserAdmin):
     model =User
 

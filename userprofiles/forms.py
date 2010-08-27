@@ -9,7 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 from  models import UserProfileField, StoreValues, UserProfile
 from django import db
 from django.contrib.auth.models import User, Group
-
+from django.conf import settings
 ### --- F O R M S --- ###
 class UserProfileFieldForm(forms.ModelForm):
     class Meta:
@@ -116,7 +116,9 @@ class UserChangeCustForm(forms.ModelForm):
         i=0
         if profile:
             field_names=()
+            field_name_mapping={}
             for field in profile.fields.all():
+                field_name_mapping[field.name]='pfield%s'%i
                 self.fields['pfield%s'%i] = forms.CharField(max_length=255)
                 #cutom form field (non CharFields)
                 if hasattr(field.content_type.model_class(),'form_field'):
@@ -134,6 +136,21 @@ class UserChangeCustForm(forms.ModelForm):
                 i+=1
             self.field_count=i;#need for save, clean
             self.fieldset_el= ('Profile', {'fields': field_names})
+
+            #adjust fieldorder
+            #@XXX: Its a hack, only default fields are oderable
+            #@TODO: create a new model fieldorder with int position and fk to field, profile
+            field_names=getattr(settings, 'USER_PROFILES')[profile.identifier]
+            tmp_order_list=()
+            for f in self.fields.keyOrder:
+                if not 'pfield' in f:
+                    tmp_order_list+=(f,)
+
+            for fname in field_names:
+                tmp_order_list += (field_name_mapping[fname],)
+            
+            self.fields.keyOrder=tmp_order_list
+
 
     def save(self, *args, **kwargs):
         cd = self.clean()
@@ -196,6 +213,7 @@ class UserCreateNoUsernameForm(UserCreateForm):
         if a: a[0][u'email'] = a[0][u'username']
         super(UserCreateNoUsernameForm, self).__init__(*a, **kw)
         self.fields['username'] = forms.EmailField()
+        self.fields['username'].label = _("Email") 
 
     def save(self, *a, **kw):
         user = super(UserCreateNoUsernameForm, self).save(*a, **kw)
