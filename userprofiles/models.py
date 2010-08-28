@@ -135,20 +135,51 @@ class UserProfileField(models.Model):
         return u''+self.name
 
 class UserProfile(models.Model):
-    identifier = models.CharField(max_length=100, blank=False, unique=True)
+    #id = models.AutoField(unique=True, blank=False, primary_key=True)
+    identifier = models.CharField(max_length=100, blank=False)
     fields = models.ManyToManyField(UserProfileField, blank=True)
+
 
     def __unicode__(self):
         return u''+self.identifier
+
+        
 
 ### --- Extend auth --- ###
 #User
 def get_profile(self):
     return self.profile
+
+
 auth.models.User.add_to_class( 'profile', 
         models.ForeignKey(UserProfile, null=True))
 auth.models.User.add_to_class( 'get_profile',
         get_profile)
+oldinit=  auth.models.User.__init__
+def newinit(self, *a, **kw):
+    oldinit(self, *a, **kw)
+    try:
+        #print "self"
+        #print dir(self)
+        #print "profile"
+        #print self.profile
+        if self.profile:
+            field_li = self.profile.fields.all()
+            for field in field_li:
+        #        print field
+                def t():
+                    qs=field.store_value.filter(profile=self.profile, user=self)#auth.models.Group.objects.filter(profile=self, user=self.user).all())
+                    if qs.exists(): return qs[0].value_object.value
+                    else: return ''
+                
+                setattr(self, field.name, t)
+        #    print "after self"
+        #    print dir(self)
+    except ValueError, e:
+        pass
+
+auth.models.User.add_to_class( '__init__',
+        newinit)
 #Groups
 # users have one profile type, should automatically become
 # members related groups. see UserChangeCustForm
@@ -163,7 +194,7 @@ class StoreValues(models.Model):
         verbose_name_plural = _('Values')
         unique_together = (('field','user','profile'),)
 
-    field = models.ForeignKey(UserProfileField, related_name='profile_field')
+    field = models.ForeignKey(UserProfileField, related_name='store_value')
     profile = models.ForeignKey(UserProfile)
     user = models.ForeignKey(auth.models.User)
 
