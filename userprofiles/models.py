@@ -135,21 +135,98 @@ class UserProfileField(models.Model):
         return u''+self.name
 
 class UserProfile(models.Model):
-    #id = models.AutoField(unique=True, blank=False, primary_key=True)
     identifier = models.CharField(max_length=100, blank=False)
     fields = models.ManyToManyField(UserProfileField, blank=True)
-
 
     def __unicode__(self):
         return u''+self.identifier
 
-        
+from django.db.models.query import QuerySet
 
+class UserProfileQuery(QuerySet):
+    ''' This is used to support joins through Users GenericForeignKey to
+        Userprofile.
+        Its very beta but working!
+
+        currently supported:
+            * filter
+            * order_by
+
+        @TODO:
+            * exclude
+    '''
+
+    def __init__(self,*a, **kw):
+        # strange params handling cause
+        # of inheritans to QuerySet, to grant correct params.
+        if not kw.get('query_set'):
+            query_set=auth.models.User.objects.all()
+        else:
+            query_set = kw['query_set']
+        self.query_set = query_set
+
+        self.joins = kw.get('joins')
+
+    def filter(self, *a, **kw):
+        ''' currently there is no support for __in, __lt ... 
+            @TODO: company_name__like = "part of name"
+        '''
+        table=None
+        value=None
+        for key in kw.keys():
+            if key in self.joins.keys():
+               table = self.joins.get(key)
+               value = kw.get(key)
+               break
+        if table:
+            self.query_set=self.query_set.extra(where=['%s.value = "%s"'%(table, value)] )
+        return self
+
+
+    def __getattr__(self, attr_name):
+        ''' python calls this if called attribute is not existing.
+            this delegates all non existing attrs to UserManager.
+        '''
+        def tmp_func(self, *a, **kw):
+            return UserProfileQuery(
+                    query_set = getattr(self.query_set, attr_name) (*a,**kw), 
+                                                            joins = self.joins)
+        # methods which returns QuerySet should return 
+        # UserProfileQuery for more easy usage.
+        if attr_name in ('order_by',):
+            return tmp_func
+        else:
+            return getattr(self.query_set, attr_name)
+
+    def _clone(self):
+        return UserProfileQuery(query_set=self.query_set._clone(), joins = self.joins)
+
+class UserPFieldManager(auth.models.UserManager):
+
+    def __init__(self, *a, **kw):
+        super(UserPFieldManager, self).__init__(*a, **kw)
+        
+    def join_pfield(self,profile, field_name):
+        field=UserProfileField.objects.get(name=field_name, userprofile=profile)
+        app_label=field.content_type.app_label
+        model = field.content_type.model
+        value_table ='%s_%s' % (app_label, model)
+        connectors = (
+                'userprofiles_storevalues',
+                value_table,
+                'value_id',
+                'id',
+        )
+        qs=self.filter(storevalues__field__name=field_name)
+        qs.query.join(connectors)
+        self.query_set = qs.extra(select={field_name: '%s.value'%value_table})
+        return UserProfileQuery(query_set=self.query_set, joins = {field_name : value_table,})
+
+    
 ### --- Extend auth --- ###
 #User
 def get_profile(self):
     return self.profile
-
 
 auth.models.User.add_to_class( 'profile', 
         models.ForeignKey(UserProfile, null=True))
@@ -157,24 +234,18 @@ auth.models.User.add_to_class( 'get_profile',
         get_profile)
 oldinit=  auth.models.User.__init__
 def newinit(self, *a, **kw):
+    ''' add userprofil fields as method to user model.'''
     oldinit(self, *a, **kw)
     try:
-        #print "self"
-        #print dir(self)
-        #print "profile"
-        #print self.profile
         if self.profile:
             field_li = self.profile.fields.all()
             for field in field_li:
-        #        print field
                 def t():
                     qs=field.store_value.filter(profile=self.profile, user=self)#auth.models.Group.objects.filter(profile=self, user=self.user).all())
                     if qs.exists(): return qs[0].value_object.value
                     else: return ''
                 
                 setattr(self, field.name, t)
-        #    print "after self"
-        #    print dir(self)
     except ValueError, e:
         pass
 
@@ -188,6 +259,7 @@ auth.models.Group.add_to_class('profile',
         help_text=_("MISSING"))
         )
 
+auth.models.User.objects=UserPFieldManager()
 class StoreValues(models.Model):
     class Meta:
         verbose_name = _('Value')

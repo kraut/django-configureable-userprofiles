@@ -2,7 +2,7 @@
 from django.db.models import signals
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
 
 import models
 
@@ -48,11 +48,13 @@ def initialize_data(sender, **kwargs):
 
     #--- groups
     for name, group_tuple  in DEFAULT_GROUPS.items():
-        profile_name = group_tuple[0]
+        profile_name , perm_codenames = group_tuple
         if not Group.objects.filter(name=name):
             profile =models.UserProfile.objects.get(identifier=profile_name )
             #TODO: catch error, non existing Profile
             group = Group.objects.create(name=name , profile = profile)
+            for codename in perm_codenames:
+                group.permissions.add(Permission.objects.get(codename=codename))
             #group.profile=profileA
             #group.profile = profile
             group.save()
