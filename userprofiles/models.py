@@ -134,6 +134,7 @@ class UserProfileField(models.Model):
     def __unicode__(self):
         return u''+self.name
 
+
 class UserProfile(models.Model):
     identifier = models.CharField(max_length=100, blank=False)
     fields = models.ManyToManyField(UserProfileField, blank=True)
@@ -141,8 +142,11 @@ class UserProfile(models.Model):
     def __unicode__(self):
         return u''+self.identifier
 
-from django.db.models.query import QuerySet
 
+### --- Extend auth --- ###
+#User
+from django.db.models.query import QuerySet
+from django.core.exceptions import FieldError
 class UserProfileQuery(QuerySet):
     ''' This is used to support joins through Users GenericForeignKey to
         Userprofile.
@@ -157,6 +161,10 @@ class UserProfileQuery(QuerySet):
     '''
 
     def __init__(self,*a, **kw):
+        '''
+            @param kw query_set
+            @param kw joins = { userprofilefield.name: value_table_name }
+        '''
         # strange params handling cause
         # of inheritans to QuerySet, to grant correct params.
         if not kw.get('query_set'):
@@ -166,33 +174,51 @@ class UserProfileQuery(QuerySet):
         self.query_set = query_set
 
         self.joins = kw.get('joins')
+        #@TODO: throw error if params not existing
+
+    def __func_templ(self,org_func_name, func, *a, **kw):
+
+        #first try normal filter
+        try:
+            getattr(self.query_set, org_func_name )(*a, **kw)
+        except FieldError, e:
+            out = func(self,*a, **kw)
+            if not out :
+                raise e
+            return out
 
     def filter(self, *a, **kw):
         ''' currently there is no support for __in, __lt ... 
             @TODO: company_name__like = "part of name"
+            
         '''
-        table=None
-        value=None
-        for key in kw.keys():
-            if key in self.joins.keys():
-               table = self.joins.get(key)
-               value = kw.get(key)
-               break
-        if table:
-            self.query_set=self.query_set.extra(where=['%s.value = "%s"'%(table, value)] )
-        return self
+        def action(self, *a, **kw):
+            where_clause=None
+            for key in kw.keys():
+                if key in self.joins.keys():
+                   table = self.joins.get(key)
+                   value = kw.get(key)
+                   where_clause = '%s.value = "%s"'%(table, value)
+                   break
+            if where_clause:
+                self.query_set=self.query_set.extra(where=[where_clause ] )
+                return self
+            return None
+
+        return self.__func_templ('filter', action, *a, **kw)
 
 
     def __getattr__(self, attr_name):
         ''' python calls this if called attribute is not existing.
-            this delegates all non existing attrs to UserManager.
+            this delegates all non existing attrs to real QuerSet.
         '''
         def tmp_func(self, *a, **kw):
             return UserProfileQuery(
                     query_set = getattr(self.query_set, attr_name) (*a,**kw), 
                                                             joins = self.joins)
         # methods which returns QuerySet should return 
-        # UserProfileQuery for more easy usage.
+        # UserProfileQuery for more easy usage 
+        # (ie. to user filter() after order_by()).
         if attr_name in ('order_by',):
             return tmp_func
         else:
@@ -207,6 +233,9 @@ class UserPFieldManager(auth.models.UserManager):
         super(UserPFieldManager, self).__init__(*a, **kw)
         
     def join_pfield(self,profile, field_name):
+        ''' allows to make join through profilefields 
+            @TODO: allow join of more than one field.
+        '''
         field=UserProfileField.objects.get(name=field_name, userprofile=profile)
         app_label=field.content_type.app_label
         model = field.content_type.model
@@ -219,12 +248,11 @@ class UserPFieldManager(auth.models.UserManager):
         )
         qs=self.filter(storevalues__field__name=field_name)
         qs.query.join(connectors)
-        self.query_set = qs.extra(select={field_name: '%s.value'%value_table})
-        return UserProfileQuery(query_set=self.query_set, joins = {field_name : value_table,})
+        query_set = qs.extra(select={field_name: '%s.value'%value_table})
+        return UserProfileQuery(query_set=query_set, joins = {field_name : value_table,})
 
     
-### --- Extend auth --- ###
-#User
+auth.models.User.objects=UserPFieldManager()
 def get_profile(self):
     return self.profile
 
@@ -253,13 +281,12 @@ auth.models.User.add_to_class( '__init__',
         newinit)
 #Groups
 # users have one profile type, should automatically become
-# members related groups. see UserChangeCustForm
+# member of related groups. see UserChangeCustForm
 auth.models.Group.add_to_class('profile', 
         models.ForeignKey(UserProfile, verbose_name=_('profiles'), blank=True,
-        help_text=_("MISSING"))
+        help_text=_("Assocciated user profile"))
         )
 
-auth.models.User.objects=UserPFieldManager()
 class StoreValues(models.Model):
     class Meta:
         verbose_name = _('Value')
